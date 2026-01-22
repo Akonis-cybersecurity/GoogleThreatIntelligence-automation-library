@@ -18,14 +18,20 @@ class GTIScanFile(Action):
             api_key = self.module.configuration.get("api_key")
             if not api_key:
                 return {"success": False, "error": "API key not configured"}
-            file_path = arguments.get("file_path")
-            if not file_path or not Path(file_path).exists():
-                return {"success": False, "error": f"File not found: {file_path}"}
+
+            rel_path = arguments.get("file_path")
+            if not rel_path:
+                return {"success": False, "error": "Missing argument: file_path"}
+
+            file_path = self._data_path.joinpath(rel_path)
+
+            if not file_path.exists() or not file_path.is_file():
+                return {"success": False, "error": f"File not found in data storage: {rel_path}"}
 
             connector = VTAPIConnector(api_key, url="", domain="", ip="", file_hash="", cve="")
-            with vt.Client(api_key, trust_env=True) as client:
 
-                connector.scan_file(client, file_path)
+            with vt.Client(api_key, trust_env=True) as client:
+                connector.scan_file(client, str(file_path))
                 analysis = connector.results[-1].response
 
                 return {
@@ -33,7 +39,7 @@ class GTIScanFile(Action):
                     "data": {
                         "analysis_stats": analysis.get("analysis_stats"),
                         "analysis_results": analysis.get("analysis_results"),
-                        "file_path": analysis.get("file_path", file_path),
+                        "file_path": analysis.get("file_path", rel_path),
                     },
                 }
         except Exception as e:

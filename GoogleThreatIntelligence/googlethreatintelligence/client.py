@@ -246,15 +246,13 @@ class VTAPIConnector:
 
             behaviours = []
             for behaviour in behaviours_it:
-
                 behaviour_data = {}
 
                 # sandbox_name always included when present (tests expect it)
                 if hasattr(behaviour, "sandbox_name"):
                     behaviour_data["sandbox_name"] = behaviour.sandbox_name
 
-                # For behaviour list attributes: include key if attribute exists
-                # even if attribute is an empty list.
+                # Keep counters when those lists exist
                 for attr in [
                     "processes_created",
                     "files_written",
@@ -262,10 +260,23 @@ class VTAPIConnector:
                     "registry_keys_set",
                     "dns_lookups",
                     "ip_traffic",
+                    "http_conversations",
+                    "command_executions",
+                    "modules_loaded",
                 ]:
                     value = getattr(behaviour, attr, None)
                     if value is not None:
                         behaviour_data[attr] = len(value)
+
+                # include rich fields when available (don’t count them, keep content)
+                for attr in [
+                    "mitre_attack_techniques",
+                    "sigma_analysis_results",
+                    "signature_matches",
+                ]:
+                    value = getattr(behaviour, attr, None)
+                    if value is not None:
+                        behaviour_data[attr] = self._make_serializable(value)
 
                 behaviours.append(behaviour_data)
 

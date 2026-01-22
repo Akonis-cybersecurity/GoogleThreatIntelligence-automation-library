@@ -1,4 +1,5 @@
 from unittest.mock import patch, MagicMock, PropertyMock
+from pathlib import Path
 from googlethreatintelligence.scan_file import GTIScanFile
 import vt
 import tempfile
@@ -7,150 +8,146 @@ import os
 API_KEY = "FAKE_API_KEY"
 
 
+def _create_file_in_data_storage(data_storage: str, rel_path: str, content: bytes = b"dummy content") -> Path:
+    root = Path(data_storage)
+    abs_path = root.joinpath(rel_path)
+    abs_path.parent.mkdir(parents=True, exist_ok=True)
+    abs_path.write_bytes(content)
+    return abs_path
+
+
 # === SUCCESS CASE ===
 @patch("googlethreatintelligence.scan_file.vt.Client")
 @patch("googlethreatintelligence.scan_file.VTAPIConnector")
-def test_scan_file_success(mock_connector_class, mock_vt_client):
+def test_scan_file_success(mock_connector_class, mock_vt_client, data_storage):
     """Test successful file scan"""
 
-    # Create a temporary file to simulate a real file
-    with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
-        tmp_path = tmp_file.name
-        tmp_file.write(b"dummy content")
+    rel_path = "samples/dummy.bin"
+    abs_path = _create_file_in_data_storage(data_storage, rel_path)
 
-    try:
-        # Mock VTAPIConnector instance
-        mock_connector_instance = MagicMock()
-        mock_connector_class.return_value = mock_connector_instance
+    # Mock VTAPIConnector instance
+    mock_connector_instance = MagicMock()
+    mock_connector_class.return_value = mock_connector_instance
 
-        # Create a mock Result object that will be in connector.results
-        mock_result = MagicMock()
-        mock_analysis = MagicMock()
-        mock_analysis.stats = {"malicious": 0, "suspicious": 0, "harmless": 50}
-        mock_analysis.results = {"scanner1": "clean", "scanner2": "clean"}
-        mock_result.response = mock_analysis
+    # Mock the results list - scan_file() appends to this list
+    mock_result = MagicMock()
+    mock_result.response = {
+        "analysis_stats": {"malicious": 0, "suspicious": 0, "harmless": 50},
+        "analysis_results": {"scanner1": "clean", "scanner2": "clean"},
+    }
+    mock_connector_instance.results = [mock_result]
+    mock_connector_instance.scan_file.return_value = None
 
-        # Mock the results list - scan_file() appends to this list
-        mock_connector_instance.results = [mock_result]
-        mock_connector_instance.scan_file.return_value = None  # scan_file returns None
+    # Mock vt.Client context manager
+    mock_client_instance = MagicMock()
+    mock_vt_client.return_value.__enter__.return_value = mock_client_instance
 
-        # Mock vt.Client context manager
-        mock_client_instance = MagicMock()
-        mock_vt_client.return_value.__enter__.return_value = mock_client_instance
+    # Initialize action and mock configuration
+    action = GTIScanFile()
+    action.module.configuration = {"api_key": API_KEY}
 
-        # Initialize action and mock configuration
-        action = GTIScanFile()
-        action.module.configuration = {"api_key": API_KEY}
+    # IMPORTANT: simulate framework data path
+    action._data_path = Path(data_storage)
 
-        # Run the action
-        response = action.run({"file_path": tmp_path})
+    # Run the action with RELATIVE path (prod behavior)
+    response = action.run({"file_path": rel_path})
 
-        # === Assertions ===
-        assert response is not None
-        assert response["success"] is True
-        assert "data" in response
-        assert "file_path" in response["data"]
-        assert "analysis_stats" in response["data"]
-        assert "analysis_results" in response["data"]
+    assert response is not None
+    assert response["success"] is True
+    assert "data" in response
+    assert response["data"]["analysis_stats"]["malicious"] == 0
+    assert "analysis_results" in response["data"]
+    assert response["data"]["file_path"] == rel_path  # we default to rel_path
 
-        mock_connector_class.assert_called_once_with(API_KEY, url="", domain="", ip="", file_hash="", cve="")
-        mock_connector_instance.scan_file.assert_called_once_with(mock_client_instance, tmp_path)
-        mock_vt_client.assert_called_once_with(API_KEY, trust_env=True)
-    finally:
-        os.unlink(tmp_path)
+    mock_connector_class.assert_called_once_with(API_KEY, url="", domain="", ip="", file_hash="", cve="")
+    mock_connector_instance.scan_file.assert_called_once_with(mock_client_instance, str(abs_path))
+    mock_vt_client.assert_called_once_with(API_KEY, trust_env=True)
 
 
 # === MISSING API KEY ===
-def test_scan_file_no_api_key():
+def test_scan_file_no_api_key(data_storage):
     """Test behavior when API key is missing"""
     action = GTIScanFile()
+    action._data_path = Path(data_storage)
 
-    # Correctly mock the module.configuration PropertyMock
+    # Mock module.configuration PropertyMock
     with patch.object(type(action.module), "configuration", new_callable=PropertyMock) as mock_config:
         mock_config.return_value = {}
 
-        response = action.run({"file_path": "dummy_path"})
+        response = action.run({"file_path": "samples/dummy.bin"})
 
         assert response is not None
         assert response["success"] is False
         assert "API key" in response["error"]
 
 
-# === FILE NOT FOUND ===
-def test_scan_file_file_not_found():
-    """Test behavior when the file does not exist"""
+# === FILE NOT FOUND (relative path not present in DATA_STORAGE) ===
+def test_scan_file_file_not_found(data_storage):
+    """Test behavior when the file does not exist in DATA_STORAGE"""
     action = GTIScanFile()
     action.module.configuration = {"api_key": API_KEY}
+    action._data_path = Path(data_storage)
 
-    response = action.run({"file_path": "/nonexistent/file.txt"})
+    response = action.run({"file_path": "samples/does_not_exist.bin"})
 
     assert response is not None
     assert response["success"] is False
-    assert "File not found" in response["error"]
+    assert "data storage" in response["error"].lower()
 
 
 # === API ERROR HANDLING ===
 @patch("googlethreatintelligence.scan_file.vt.Client")
 @patch("googlethreatintelligence.scan_file.VTAPIConnector")
-def test_scan_file_api_error(mock_connector_class, mock_vt_client):
+def test_scan_file_api_error(mock_connector_class, mock_vt_client, data_storage):
     """Test behavior when the VirusTotal API fails"""
-    with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
-        tmp_path = tmp_file.name
-        tmp_file.write(b"dummy content")
+    rel_path = "samples/dummy.bin"
+    abs_path = _create_file_in_data_storage(data_storage, rel_path)
 
-    try:
-        # Mock connector that raises an APIError
-        mock_connector_instance = MagicMock()
-        mock_connector_instance.scan_file.side_effect = vt.APIError("QuotaExceededError", "API quota exceeded")
-        mock_connector_class.return_value = mock_connector_instance
+    # Mock connector that raises an APIError
+    mock_connector_instance = MagicMock()
+    mock_connector_instance.scan_file.side_effect = vt.APIError("QuotaExceededError", "API quota exceeded")
+    mock_connector_class.return_value = mock_connector_instance
 
-        # Mock vt.Client context
-        mock_client_instance = MagicMock()
-        mock_vt_client.return_value.__enter__.return_value = mock_client_instance
+    # Mock vt.Client context
+    mock_client_instance = MagicMock()
+    mock_vt_client.return_value.__enter__.return_value = mock_client_instance
 
-        action = GTIScanFile()
-        action.module.configuration = {"api_key": API_KEY}
+    action = GTIScanFile()
+    action.module.configuration = {"api_key": API_KEY}
+    action._data_path = Path(data_storage)
 
-        response = action.run({"file_path": tmp_path})
+    response = action.run({"file_path": rel_path})
 
-        assert response is not None
-        assert response["success"] is False
-        assert "API quota exceeded" in response["error"]
+    assert response is not None
+    assert response["success"] is False
+    assert "API quota exceeded" in response["error"]
 
-        mock_connector_instance.scan_file.assert_called_once_with(mock_client_instance, tmp_path)
-        mock_vt_client.assert_called_once_with(API_KEY, trust_env=True)
-    finally:
-        os.unlink(tmp_path)
+    mock_connector_instance.scan_file.assert_called_once_with(mock_client_instance, str(abs_path))
+    mock_vt_client.assert_called_once_with(API_KEY, trust_env=True)
 
 
-# === ADDITIONAL TEST: Empty results list ===
+# === EDGE CASE: Empty results list ===
 @patch("googlethreatintelligence.scan_file.vt.Client")
 @patch("googlethreatintelligence.scan_file.VTAPIConnector")
-def test_scan_file_empty_results(mock_connector_class, mock_vt_client):
+def test_scan_file_empty_results(mock_connector_class, mock_vt_client, data_storage):
     """Test behavior when connector.results is empty (edge case)"""
-    with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
-        tmp_path = tmp_file.name
-        tmp_file.write(b"dummy content")
+    rel_path = "samples/dummy.bin"
+    _create_file_in_data_storage(data_storage, rel_path)
 
-    try:
-        # Mock connector with empty results
-        mock_connector_instance = MagicMock()
-        mock_connector_instance.results = []  # Empty results list
-        mock_connector_instance.scan_file.return_value = None
-        mock_connector_class.return_value = mock_connector_instance
+    mock_connector_instance = MagicMock()
+    mock_connector_instance.results = []  # Empty results list
+    mock_connector_instance.scan_file.return_value = None
+    mock_connector_class.return_value = mock_connector_instance
 
-        # Mock vt.Client context
-        mock_client_instance = MagicMock()
-        mock_vt_client.return_value.__enter__.return_value = mock_client_instance
+    mock_client_instance = MagicMock()
+    mock_vt_client.return_value.__enter__.return_value = mock_client_instance
 
-        action = GTIScanFile()
-        action.module.configuration = {"api_key": API_KEY}
+    action = GTIScanFile()
+    action.module.configuration = {"api_key": API_KEY}
+    action._data_path = Path(data_storage)
 
-        response = action.run({"file_path": tmp_path})
+    response = action.run({"file_path": rel_path})
 
-        # This should cause an IndexError which gets caught by the general exception handler
-        assert response is not None
-        assert response["success"] is False
-        assert "error" in response
-    finally:
-        os.unlink(tmp_path)
+    assert response is not None
+    assert response["success"] is False
+    assert "error" in response
