@@ -1,5 +1,6 @@
 from unittest.mock import patch, MagicMock, PropertyMock
 from pathlib import Path
+import pytest
 from googlethreatintelligence.scan_file import GTIScanFile
 import vt
 
@@ -80,11 +81,8 @@ def test_scan_file_file_not_found(data_storage, module):
     action = GTIScanFile(module=module, data_path=data_storage)
     action.module.configuration = {"api_key": API_KEY}
 
-    response = action.run({"file_path": "samples/does_not_exist.bin"})
-
-    assert response is not None
-    assert response["success"] is False
-    assert "data storage" in response["error"].lower()
+    with pytest.raises(FileNotFoundError):
+        action.run({"file_path": "samples/does_not_exist.bin"})
 
 
 # === API ERROR HANDLING ===
@@ -107,11 +105,8 @@ def test_scan_file_api_error(mock_connector_class, mock_vt_client, data_storage,
     action = GTIScanFile(module=module, data_path=data_storage)
     action.module.configuration = {"api_key": API_KEY}
 
-    response = action.run({"file_path": rel_path})
-
-    assert response is not None
-    assert response["success"] is False
-    assert "API quota exceeded" in response["error"]
+    with pytest.raises(vt.APIError):
+        action.run({"file_path": rel_path})
 
     mock_connector_instance.scan_file.assert_called_once_with(mock_client_instance, str(abs_path))
     mock_vt_client.assert_called_once_with(API_KEY, trust_env=True)
