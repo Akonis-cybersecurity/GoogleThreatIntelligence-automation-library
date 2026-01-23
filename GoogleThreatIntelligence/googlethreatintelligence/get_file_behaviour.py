@@ -28,7 +28,8 @@ class GTIGetFileBehaviour(Action):
                 connector.get_file_behaviour(client)
                 result = connector.results[-1]
 
-            return {"success": result.status == "SUCCESS", "data": result.response}
+            # Flatten response: put all fields at root level for UI compatibility
+            return {"success": result.status == "SUCCESS", **result.response}
 
         except Exception as e:
             return {"success": False, "error": str(e)}
