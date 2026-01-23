@@ -253,13 +253,19 @@ class VTAPIConnector:
 
     def get_file_behaviour(self, client: vt.Client):
         """Get file sandbox behavior"""
+
+        endpoint_api = f"/api/v3/files/{self.file_hash}/behaviours"
+        endpoint_vtpy = f"/files/{self.file_hash}/behaviours"
+
         try:
             # Let vt-py paginate through all behaviours without a hard cap.
-            behaviours_it = client.iterator(f"/files/{self.file_hash}/behaviours")
+            behaviours_it = client.iterator(endpoint_vtpy)
 
             behaviours = []
             for behaviour in behaviours_it:
                 behaviour_raw = self._make_serializable(behaviour)
+
+                # Normalize "attributes"
                 if isinstance(behaviour_raw, dict) and isinstance(behaviour_raw.get("attributes"), dict):
                     behaviour_attrs = dict(behaviour_raw["attributes"])
                 elif isinstance(behaviour_raw, dict):
@@ -267,13 +273,18 @@ class VTAPIConnector:
                 else:
                     behaviour_attrs = {"value": behaviour_raw}
 
+                # Ensure sandbox_name (best-effort)
                 if "sandbox_name" not in behaviour_attrs and hasattr(behaviour, "sandbox_name"):
                     behaviour_attrs["sandbox_name"] = behaviour.sandbox_name
 
                 behaviour_data = {}
+
+                # Keep stable identifiers
                 for key in ("id", "type"):
                     if isinstance(behaviour_raw, dict) and key in behaviour_raw:
                         behaviour_data[key] = behaviour_raw[key]
+                    elif key in behaviour_attrs:
+                        behaviour_data[key] = behaviour_attrs[key]
 
                 # Fields expected by action_get_file_behaviour.json
                 scalar_fields = [
@@ -307,11 +318,13 @@ class VTAPIConnector:
                     "dns_lookups",
                 ]
 
+                # Copy scalar fields as-is (only if present)
                 for field in scalar_fields:
                     value = behaviour_attrs.get(field)
                     if value is not None:
                         behaviour_data[field] = value
 
+                # Copy count-like fields (convert collections to counts)
                 for field in count_fields:
                     value = behaviour_attrs.get(field)
                     if value is None:
@@ -323,22 +336,35 @@ class VTAPIConnector:
 
                 behaviours.append(behaviour_data)
 
+            result_payload = {
+                "behaviours_count": len(behaviours),
+                "file_hash": self.file_hash,
+                "behaviours": behaviours,
+            }
+
             self._add_result(
                 "GET_FILE_SANDBOX",
                 "GET",
-                f"/api/v3/files/{self.file_hash}/behaviours",
+                endpoint_api,
                 "SUCCESS",
-                {"behaviours_count": len(behaviours), "file_hash": self.file_hash, "behaviours": behaviours},
+                result_payload,
             )
 
         except vt.APIError as e:
             logger.warning(f"File behaviours not available (may require Premium API): {e}")
+
+            result_payload = {
+                "behaviours_count": 0,
+                "file_hash": self.file_hash,
+                "behaviours": [],
+            }
+
             self._add_result(
                 "GET_FILE_SANDBOX",
                 "GET",
-                f"/api/v3/files/{self.file_hash}/behaviours",
+                endpoint_api,
                 "NOT_AVAILABLE",
-                None,
+                result_payload,
                 f"May require Premium API: {str(e)}",
             )
 
