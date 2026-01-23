@@ -57,6 +57,9 @@ def test_get_file_behaviour_success(mock_vt_client):
     assert response["data"]["behaviours_count"] == 1
     assert isinstance(response["data"]["behaviours"], list)
     assert response["data"]["behaviours"][0]["sandbox_name"] == "Windows10"
+    # Verify flattened/merged fields
+    assert response["data"]["sandbox_names"] == ["Windows10"]
+    assert response["data"]["file_hash"] is not None
 
     # Verify vt.Client was called with the correct API key
     mock_vt_client.assert_called_once_with(API_KEY, trust_env=True)

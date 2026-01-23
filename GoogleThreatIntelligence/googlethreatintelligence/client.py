@@ -252,7 +252,7 @@ class VTAPIConnector:
             self._add_result("GET_ANALYSIS", "GET", f"/api/v3/analyses/{analysis_id}", "ERROR", None, str(e))
 
     def get_file_behaviour(self, client: vt.Client):
-        """Get file sandbox behavior"""
+        """Get file sandbox behavior with flattened/merged data for UI compatibility"""
 
         endpoint_api = f"/api/v3/files/{self.file_hash}/behaviours"
         endpoint_vtpy = f"/files/{self.file_hash}/behaviours"
@@ -262,6 +262,42 @@ class VTAPIConnector:
             behaviours_it = client.iterator(endpoint_vtpy)
 
             behaviours = []
+
+            # Aggregated/merged fields across all sandboxes (using dict for dynamic access)
+            sandbox_names = []
+            merged = {
+                "verdicts": [],
+                "tags": [],
+                "ip_traffic": [],
+                "dns_lookups": [],
+                "http_conversations": [],
+                "command_executions": [],
+                "files_opened": [],
+                "files_written": [],
+                "files_deleted": [],
+                "files_copied": [],
+                "files_dropped": [],
+                "registry_keys_opened": [],
+                "registry_keys_set": [],
+                "registry_keys_deleted": [],
+                "modules_loaded": [],
+                "mitre_attack_techniques": [],
+                "processes_tree": [],
+                "processes_terminated": [],
+                "processes_injected": [],
+                "text_highlighted": [],
+                "sigma_analysis_results": [],
+                "services_opened": [],
+                "services_created": [],
+                "services_started": [],
+                "mutexes_opened": [],
+                "mutexes_created": [],
+                "calls_highlighted": [],
+            }
+
+            # Summed counts
+            total_processes_created = 0
+
             for behaviour in behaviours_it:
                 behaviour_raw = self._make_serializable(behaviour)
 
@@ -286,7 +322,7 @@ class VTAPIConnector:
                     elif key in behaviour_attrs:
                         behaviour_data[key] = behaviour_attrs[key]
 
-                # Fields expected by action_get_file_behaviour.json
+                # Fields to copy as-is into each behaviour
                 scalar_fields = [
                     "sandbox_name",
                     "analysis_date",
@@ -296,49 +332,81 @@ class VTAPIConnector:
                     "has_pcap",
                     "has_evtx",
                     "has_memdump",
+                ]
+
+                # Array fields to merge across sandboxes
+                array_fields = [
                     "verdicts",
-                    "processes_tree",
-                    "processes_terminated",
+                    "tags",
+                    "ip_traffic",
+                    "dns_lookups",
+                    "http_conversations",
                     "command_executions",
                     "files_opened",
-                    "registry_keys_opened",
-                    "modules_loaded",
-                    "ip_traffic",
-                    "mitre_attack_techniques",
-                    "tags",
-                    "text_highlighted",
-                    "sigma_analysis_results",
-                ]
-
-                count_fields = [
-                    "processes_created",
                     "files_written",
                     "files_deleted",
+                    "files_copied",
+                    "files_dropped",
+                    "registry_keys_opened",
                     "registry_keys_set",
-                    "dns_lookups",
+                    "registry_keys_deleted",
+                    "modules_loaded",
+                    "mitre_attack_techniques",
+                    "processes_tree",
+                    "processes_terminated",
+                    "processes_injected",
+                    "text_highlighted",
+                    "sigma_analysis_results",
+                    "services_opened",
+                    "services_created",
+                    "services_started",
+                    "mutexes_opened",
+                    "mutexes_created",
+                    "calls_highlighted",
                 ]
 
-                # Copy scalar fields as-is (only if present)
+                # Copy scalar fields as-is
                 for field in scalar_fields:
                     value = behaviour_attrs.get(field)
                     if value is not None:
                         behaviour_data[field] = value
 
-                # Copy count-like fields (convert collections to counts)
-                for field in count_fields:
+                # Copy array fields and merge into aggregated lists
+                for field in array_fields:
                     value = behaviour_attrs.get(field)
-                    if value is None:
-                        continue
-                    if isinstance(value, (list, tuple, dict, set)):
-                        behaviour_data[field] = len(value)
-                    else:
+                    if value is not None:
                         behaviour_data[field] = value
+                        # Merge into corresponding aggregated list
+                        if isinstance(value, list) and field in merged:
+                            merged[field].extend(value)
+
+                # Handle sandbox_name aggregation
+                sandbox_name = behaviour_attrs.get("sandbox_name")
+                if sandbox_name and sandbox_name not in sandbox_names:
+                    sandbox_names.append(sandbox_name)
+
+                # Handle processes_created count
+                processes_created_val = behaviour_attrs.get("processes_created")
+                if processes_created_val is not None:
+                    if isinstance(processes_created_val, (list, tuple)):
+                        behaviour_data["processes_created"] = len(processes_created_val)
+                        total_processes_created += len(processes_created_val)
+                    else:
+                        behaviour_data["processes_created"] = processes_created_val
+                        total_processes_created += int(processes_created_val) if isinstance(processes_created_val, (int, float)) else 0
 
                 behaviours.append(behaviour_data)
 
+            # Build the flattened result payload
             result_payload = {
-                "behaviours_count": len(behaviours),
                 "file_hash": self.file_hash,
+                "behaviours_count": len(behaviours),
+                "sandbox_names": sandbox_names,
+                # Merged arrays (directly accessible in UI)
+                **merged,
+                # Summed counts
+                "processes_created": total_processes_created,
+                # Keep raw behaviours for reference
                 "behaviours": behaviours,
             }
 
@@ -353,9 +421,24 @@ class VTAPIConnector:
         except vt.APIError as e:
             logger.warning(f"File behaviours not available (may require Premium API): {e}")
 
+            # Empty merged structure for error case
+            empty_merged = {field: [] for field in [
+                "verdicts", "tags", "ip_traffic", "dns_lookups", "http_conversations",
+                "command_executions", "files_opened", "files_written", "files_deleted",
+                "files_copied", "files_dropped", "registry_keys_opened", "registry_keys_set",
+                "registry_keys_deleted", "modules_loaded", "mitre_attack_techniques",
+                "processes_tree", "processes_terminated", "processes_injected",
+                "text_highlighted", "sigma_analysis_results", "services_opened",
+                "services_created", "services_started", "mutexes_opened",
+                "mutexes_created", "calls_highlighted",
+            ]}
+
             result_payload = {
-                "behaviours_count": 0,
                 "file_hash": self.file_hash,
+                "behaviours_count": 0,
+                "sandbox_names": [],
+                **empty_merged,
+                "processes_created": 0,
                 "behaviours": [],
             }
 

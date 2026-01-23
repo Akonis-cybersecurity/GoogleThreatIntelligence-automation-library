@@ -106,22 +106,31 @@ def test_get_file_behaviour_success_full_attributes(connector):
     assert result.method == "GET"
     assert result.endpoint.endswith("/api/v3/files/abc123/behaviours")
 
-    # Validate behaviour1 extraction
+    # Validate merged/flattened fields at root level
+    assert result.response["file_hash"] == "abc123"
+    assert result.response["sandbox_names"] == ["SandboxA", "SandboxB"]
+    assert result.response["files_written"] == ["a", "b", "c"]  # merged from all sandboxes
+    assert result.response["files_deleted"] == ["d1"]
+    assert result.response["dns_lookups"] == ["dns1"]
+    assert result.response["ip_traffic"] == ["tcp1", "tcp2", "tcp"]  # merged
+    assert result.response["processes_created"] == 2  # sum of processes counts
+
+    # Validate behaviour1 extraction (raw data preserved)
     b1 = result.response["behaviours"][0]
     assert b1["sandbox_name"] == "SandboxA"
     assert b1["processes_created"] == 2
-    assert b1["files_written"] == 3
-    assert b1["files_deleted"] == 1
-    assert b1["registry_keys_set"] == 2
-    assert b1["dns_lookups"] == 1
+    assert b1["files_written"] == ["a", "b", "c"]
+    assert b1["files_deleted"] == ["d1"]
+    assert b1["registry_keys_set"] == ["k1", "k2"]
+    assert b1["dns_lookups"] == ["dns1"]
     assert b1["ip_traffic"] == ["tcp1", "tcp2"]
 
     # Validate behaviour2 minimal fields
     b2 = result.response["behaviours"][1]
     assert b2["sandbox_name"] == "SandboxB"
     assert b2["processes_created"] == 0
-    assert b2["files_written"] == 0
-    assert b2["dns_lookups"] == 0
+    assert b2["files_written"] == []
+    assert b2["dns_lookups"] == []
     assert b2["ip_traffic"] == ["tcp"]
 
 
