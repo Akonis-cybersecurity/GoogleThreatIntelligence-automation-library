@@ -2,15 +2,12 @@ from unittest.mock import patch, MagicMock, PropertyMock
 from pathlib import Path
 from googlethreatintelligence.scan_file import GTIScanFile
 import vt
-import tempfile
-import os
 
 API_KEY = "FAKE_API_KEY"
 
 
-def _create_file_in_data_storage(data_storage: str, rel_path: str, content: bytes = b"dummy content") -> Path:
-    root = Path(data_storage)
-    abs_path = root.joinpath(rel_path)
+def _create_file_in_data_storage(data_storage: Path, rel_path: str, content: bytes = b"dummy content") -> Path:
+    abs_path = data_storage.joinpath(rel_path)
     abs_path.parent.mkdir(parents=True, exist_ok=True)
     abs_path.write_bytes(content)
     return abs_path
@@ -19,7 +16,7 @@ def _create_file_in_data_storage(data_storage: str, rel_path: str, content: byte
 # === SUCCESS CASE ===
 @patch("googlethreatintelligence.scan_file.vt.Client")
 @patch("googlethreatintelligence.scan_file.VTAPIConnector")
-def test_scan_file_success(mock_connector_class, mock_vt_client, data_storage):
+def test_scan_file_success(mock_connector_class, mock_vt_client, data_storage, module):
     """Test successful file scan"""
 
     rel_path = "samples/dummy.bin"
@@ -43,9 +40,8 @@ def test_scan_file_success(mock_connector_class, mock_vt_client, data_storage):
     mock_vt_client.return_value.__enter__.return_value = mock_client_instance
 
     # Initialize action and mock configuration
-    action = GTIScanFile()
+    action = GTIScanFile(module=module, data_path=data_storage)
     action.module.configuration = {"api_key": API_KEY}
-    action._data_path = Path(data_storage)
 
     # Run the action with RELATIVE path (prod behavior)
     response = action.run({"file_path": rel_path})
@@ -63,10 +59,9 @@ def test_scan_file_success(mock_connector_class, mock_vt_client, data_storage):
 
 
 # === MISSING API KEY ===
-def test_scan_file_no_api_key(data_storage):
+def test_scan_file_no_api_key(data_storage, module):
     """Test behavior when API key is missing"""
-    action = GTIScanFile()
-    action._data_path = Path(data_storage)
+    action = GTIScanFile(module=module, data_path=data_storage)
 
     # Mock module.configuration PropertyMock
     with patch.object(type(action.module), "configuration", new_callable=PropertyMock) as mock_config:
@@ -80,11 +75,10 @@ def test_scan_file_no_api_key(data_storage):
 
 
 # === FILE NOT FOUND (relative path not present in DATA_STORAGE) ===
-def test_scan_file_file_not_found(data_storage):
+def test_scan_file_file_not_found(data_storage, module):
     """Test behavior when the file does not exist in DATA_STORAGE"""
-    action = GTIScanFile()
+    action = GTIScanFile(module=module, data_path=data_storage)
     action.module.configuration = {"api_key": API_KEY}
-    action._data_path = Path(data_storage)
 
     response = action.run({"file_path": "samples/does_not_exist.bin"})
 
@@ -96,7 +90,7 @@ def test_scan_file_file_not_found(data_storage):
 # === API ERROR HANDLING ===
 @patch("googlethreatintelligence.scan_file.vt.Client")
 @patch("googlethreatintelligence.scan_file.VTAPIConnector")
-def test_scan_file_api_error(mock_connector_class, mock_vt_client, data_storage):
+def test_scan_file_api_error(mock_connector_class, mock_vt_client, data_storage, module):
     """Test behavior when the VirusTotal API fails"""
     rel_path = "samples/dummy.bin"
     abs_path = _create_file_in_data_storage(data_storage, rel_path)
@@ -110,9 +104,8 @@ def test_scan_file_api_error(mock_connector_class, mock_vt_client, data_storage)
     mock_client_instance = MagicMock()
     mock_vt_client.return_value.__enter__.return_value = mock_client_instance
 
-    action = GTIScanFile()
+    action = GTIScanFile(module=module, data_path=data_storage)
     action.module.configuration = {"api_key": API_KEY}
-    action._data_path = Path(data_storage)
 
     response = action.run({"file_path": rel_path})
 
@@ -127,7 +120,7 @@ def test_scan_file_api_error(mock_connector_class, mock_vt_client, data_storage)
 # === EDGE CASE: Empty results list ===
 @patch("googlethreatintelligence.scan_file.vt.Client")
 @patch("googlethreatintelligence.scan_file.VTAPIConnector")
-def test_scan_file_empty_results(mock_connector_class, mock_vt_client, data_storage):
+def test_scan_file_empty_results(mock_connector_class, mock_vt_client, data_storage, module):
     """Test behavior when connector.results is empty (edge case)"""
     rel_path = "samples/dummy.bin"
     _create_file_in_data_storage(data_storage, rel_path)
@@ -140,9 +133,8 @@ def test_scan_file_empty_results(mock_connector_class, mock_vt_client, data_stor
     mock_client_instance = MagicMock()
     mock_vt_client.return_value.__enter__.return_value = mock_client_instance
 
-    action = GTIScanFile()
+    action = GTIScanFile(module=module, data_path=data_storage)
     action.module.configuration = {"api_key": API_KEY}
-    action._data_path = Path(data_storage)
 
     response = action.run({"file_path": rel_path})
 
