@@ -45,8 +45,6 @@ def test_scan_file_success(mock_connector_class, mock_vt_client, data_storage):
     # Initialize action and mock configuration
     action = GTIScanFile()
     action.module.configuration = {"api_key": API_KEY}
-
-    # IMPORTANT: simulate framework data path
     action._data_path = Path(data_storage)
 
     # Run the action with RELATIVE path (prod behavior)

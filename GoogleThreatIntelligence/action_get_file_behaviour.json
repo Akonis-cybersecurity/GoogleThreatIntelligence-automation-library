@@ -341,31 +341,6 @@
         "items": {
           "type": "string"
         }
-      },
-      "behaviours": {
-        "type": "array",
-        "description": "Raw behaviour reports from each sandbox (for reference)",
-        "items": {
-          "type": "object",
-          "properties": {
-            "id": {
-              "type": "string",
-              "description": "Unique identifier for the behaviour report"
-            },
-            "type": {
-              "type": "string",
-              "description": "Type of the object (always 'file_behaviour')"
-            },
-            "sandbox_name": {
-              "type": "string",
-              "description": "Name of the sandbox that analyzed the file"
-            },
-            "analysis_date": {
-              "type": "integer",
-              "description": "Unix timestamp of when the analysis was performed"
-            }
-          }
-        }
       }
     },
     "required": [

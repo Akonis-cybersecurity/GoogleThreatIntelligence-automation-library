@@ -23,7 +23,7 @@ class GTIScanFile(Action):
             if not rel_path:
                 return {"success": False, "error": "Missing argument: file_path"}
 
-            file_path = self._data_path.joinpath(rel_path)
+            file_path = self.data_path.joinpath(rel_path)
 
             if not file_path.exists() or not file_path.is_file():
                 return {"success": False, "error": f"File not found in data storage: {rel_path}"}

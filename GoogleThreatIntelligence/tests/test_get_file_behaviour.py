@@ -44,8 +44,8 @@ def test_get_file_behaviour_success(mock_vt_client):
     action = GTIGetFileBehaviour()
     action.module.configuration = {"api_key": API_KEY}
 
-    # Run the action
-    response = action.run({"entity_type": "files", "entity": FILE_HASH})
+    # Run the action with correct argument name
+    response = action.run({"file_hash": FILE_HASH})
 
     # Verify response
     assert response is not None
@@ -81,14 +81,17 @@ def test_get_file_behaviour_fail_api_error(mock_vt_client):
     action = GTIGetFileBehaviour()
     action.module.configuration = {"api_key": API_KEY}
 
-    # Run the action
-    response = action.run({"entity_type": "files", "entity": FILE_HASH})
+    # Run the action with correct argument name
+    response = action.run({"file_hash": FILE_HASH})
 
-    # Verify error response
+    # Verify error response - connector handles API error gracefully
+    # and returns a response with empty fields and success=False
     assert response is not None
     assert isinstance(response, dict)
     assert response.get("success") is False
-    assert "data" in response or "error" in response
+    # When API error occurs, connector returns empty lists for all fields
+    assert response.get("behaviours") == []
+    assert response.get("behaviours_count") == 0
 
     # Verify vt.Client was called
     mock_vt_client.assert_called_once_with(API_KEY, trust_env=True)
