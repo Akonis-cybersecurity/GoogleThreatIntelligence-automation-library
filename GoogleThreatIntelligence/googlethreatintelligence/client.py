@@ -96,6 +96,18 @@ class VTAPIConnector:
         if depth > max_depth:
             return str(obj)
 
+        # Prefer VT's own dict/json representations when available
+        if hasattr(obj, "to_dict") and callable(getattr(obj, "to_dict")):
+            try:
+                return self._make_serializable(obj.to_dict(), depth + 1, max_depth)
+            except Exception:
+                pass
+        if hasattr(obj, "_json"):
+            try:
+                return self._make_serializable(getattr(obj, "_json"), depth + 1, max_depth)
+            except Exception:
+                pass
+
         if isinstance(obj, dict):
             return {k: self._make_serializable(v, depth + 1, max_depth) for k, v in obj.items()}
         elif isinstance(obj, (list, tuple)):
@@ -242,41 +254,24 @@ class VTAPIConnector:
     def get_file_behaviour(self, client: vt.Client):
         """Get file sandbox behavior"""
         try:
-            behaviours_it = client.iterator(f"/files/{self.file_hash}/behaviours", limit=5)
+            # Let vt-py paginate through all behaviours without a hard cap.
+            behaviours_it = client.iterator(f"/files/{self.file_hash}/behaviours")
 
             behaviours = []
             for behaviour in behaviours_it:
-                behaviour_data = {}
+                behaviour_raw = self._make_serializable(behaviour)
+                if isinstance(behaviour_raw, dict) and isinstance(behaviour_raw.get("attributes"), dict):
+                    behaviour_data = dict(behaviour_raw["attributes"])
+                    for key in ("id", "type"):
+                        if key in behaviour_raw:
+                            behaviour_data[key] = behaviour_raw[key]
+                elif isinstance(behaviour_raw, dict):
+                    behaviour_data = dict(behaviour_raw)
+                else:
+                    behaviour_data = {"value": behaviour_raw}
 
-                # sandbox_name always included when present (tests expect it)
-                if hasattr(behaviour, "sandbox_name"):
+                if "sandbox_name" not in behaviour_data and hasattr(behaviour, "sandbox_name"):
                     behaviour_data["sandbox_name"] = behaviour.sandbox_name
-
-                # Keep counters when those lists exist
-                for attr in [
-                    "processes_created",
-                    "files_written",
-                    "files_deleted",
-                    "registry_keys_set",
-                    "dns_lookups",
-                    "ip_traffic",
-                    "http_conversations",
-                    "command_executions",
-                    "modules_loaded",
-                ]:
-                    value = getattr(behaviour, attr, None)
-                    if value is not None:
-                        behaviour_data[attr] = len(value)
-
-                # include rich fields when available (don’t count them, keep content)
-                for attr in [
-                    "mitre_attack_techniques",
-                    "sigma_analysis_results",
-                    "signature_matches",
-                ]:
-                    value = getattr(behaviour, attr, None)
-                    if value is not None:
-                        behaviour_data[attr] = self._make_serializable(value)
 
                 behaviours.append(behaviour_data)
 

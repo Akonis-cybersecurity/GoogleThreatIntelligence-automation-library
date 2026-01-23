@@ -19,6 +19,19 @@ def test_get_file_behaviour_success(mock_vt_client):
     mock_behaviour.registry_keys_set = ["HKCU\\Software\\Test"]
     mock_behaviour.dns_lookups = ["example.com"]
     mock_behaviour.ip_traffic = ["8.8.8.8"]
+    mock_behaviour.to_dict = MagicMock(
+        return_value={
+            "attributes": {
+                "sandbox_name": "Windows10",
+                "processes_created": ["cmd.exe", "calc.exe"],
+                "files_written": ["C:\\temp\\file1.tmp"],
+                "files_deleted": [],
+                "registry_keys_set": ["HKCU\\Software\\Test"],
+                "dns_lookups": ["example.com"],
+                "ip_traffic": ["8.8.8.8"],
+            }
+        }
+    )
 
     # Mock the vt.Client context manager
     mock_client_instance = MagicMock()
@@ -49,7 +62,7 @@ def test_get_file_behaviour_success(mock_vt_client):
     mock_vt_client.assert_called_once_with(API_KEY, trust_env=True)
 
     # Verify iterator was called with the correct endpoint and limit
-    mock_client_instance.iterator.assert_called_once_with(f"/files/{FILE_HASH}/behaviours", limit=5)
+    mock_client_instance.iterator.assert_called_once_with(f"/files/{FILE_HASH}/behaviours")
 
 
 @patch("googlethreatintelligence.get_file_behaviour.vt.Client")
@@ -79,7 +92,7 @@ def test_get_file_behaviour_fail_api_error(mock_vt_client):
     mock_vt_client.assert_called_once_with(API_KEY, trust_env=True)
 
     # Ensure iterator was attempted
-    mock_client_instance.iterator.assert_called_once_with(f"/files/{FILE_HASH}/behaviours", limit=5)
+    mock_client_instance.iterator.assert_called_once_with(f"/files/{FILE_HASH}/behaviours")
 
 
 def test_get_file_behaviour_no_api_key():

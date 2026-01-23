@@ -39,19 +39,29 @@ def make_behaviour(
     """Helper to create a fake behaviour object."""
     b = MagicMock()
     b.sandbox_name = sandbox_name
+    attrs = {"sandbox_name": sandbox_name}
 
     if processes is not None:
         b.processes_created = processes
+        attrs["processes_created"] = processes
     if files_written is not None:
         b.files_written = files_written
+        attrs["files_written"] = files_written
     if files_deleted is not None:
         b.files_deleted = files_deleted
+        attrs["files_deleted"] = files_deleted
     if registry_keys is not None:
         b.registry_keys_set = registry_keys
+        attrs["registry_keys_set"] = registry_keys
     if dns_lookups is not None:
         b.dns_lookups = dns_lookups
+        attrs["dns_lookups"] = dns_lookups
     if ip_traffic is not None:
         b.ip_traffic = ip_traffic
+        attrs["ip_traffic"] = ip_traffic
+
+    # Match vt-py objects: expose attributes via to_dict()/attributes
+    b.to_dict = MagicMock(return_value={"attributes": attrs})
 
     return b
 
@@ -99,20 +109,20 @@ def test_get_file_behaviour_success_full_attributes(connector):
     # Validate behaviour1 extraction
     b1 = result.response["behaviours"][0]
     assert b1["sandbox_name"] == "SandboxA"
-    assert b1["processes_created"] == 2
-    assert b1["files_written"] == 3
-    assert b1["files_deleted"] == 1
-    assert b1["registry_keys_set"] == 2
-    assert b1["dns_lookups"] == 1
-    assert b1["ip_traffic"] == 2
+    assert b1["processes_created"] == [1, 2]
+    assert b1["files_written"] == ["a", "b", "c"]
+    assert b1["files_deleted"] == ["d1"]
+    assert b1["registry_keys_set"] == ["k1", "k2"]
+    assert b1["dns_lookups"] == ["dns1"]
+    assert b1["ip_traffic"] == ["tcp1", "tcp2"]
 
     # Validate behaviour2 minimal fields
     b2 = result.response["behaviours"][1]
     assert b2["sandbox_name"] == "SandboxB"
-    assert b2["processes_created"] == 0
-    assert b2["files_written"] == 0
-    assert b2["dns_lookups"] == 0
-    assert b2["ip_traffic"] == 1
+    assert b2["processes_created"] == []
+    assert b2["files_written"] == []
+    assert b2["dns_lookups"] == []
+    assert b2["ip_traffic"] == ["tcp"]
 
 
 # -------------------------------------------------------
