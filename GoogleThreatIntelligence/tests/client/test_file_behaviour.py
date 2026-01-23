@@ -109,19 +109,19 @@ def test_get_file_behaviour_success_full_attributes(connector):
     # Validate behaviour1 extraction
     b1 = result.response["behaviours"][0]
     assert b1["sandbox_name"] == "SandboxA"
-    assert b1["processes_created"] == [1, 2]
-    assert b1["files_written"] == ["a", "b", "c"]
-    assert b1["files_deleted"] == ["d1"]
-    assert b1["registry_keys_set"] == ["k1", "k2"]
-    assert b1["dns_lookups"] == ["dns1"]
+    assert b1["processes_created"] == 2
+    assert b1["files_written"] == 3
+    assert b1["files_deleted"] == 1
+    assert b1["registry_keys_set"] == 2
+    assert b1["dns_lookups"] == 1
     assert b1["ip_traffic"] == ["tcp1", "tcp2"]
 
     # Validate behaviour2 minimal fields
     b2 = result.response["behaviours"][1]
     assert b2["sandbox_name"] == "SandboxB"
-    assert b2["processes_created"] == []
-    assert b2["files_written"] == []
-    assert b2["dns_lookups"] == []
+    assert b2["processes_created"] == 0
+    assert b2["files_written"] == 0
+    assert b2["dns_lookups"] == 0
     assert b2["ip_traffic"] == ["tcp"]
 
 

@@ -261,17 +261,65 @@ class VTAPIConnector:
             for behaviour in behaviours_it:
                 behaviour_raw = self._make_serializable(behaviour)
                 if isinstance(behaviour_raw, dict) and isinstance(behaviour_raw.get("attributes"), dict):
-                    behaviour_data = dict(behaviour_raw["attributes"])
-                    for key in ("id", "type"):
-                        if key in behaviour_raw:
-                            behaviour_data[key] = behaviour_raw[key]
+                    behaviour_attrs = dict(behaviour_raw["attributes"])
                 elif isinstance(behaviour_raw, dict):
-                    behaviour_data = dict(behaviour_raw)
+                    behaviour_attrs = dict(behaviour_raw)
                 else:
-                    behaviour_data = {"value": behaviour_raw}
+                    behaviour_attrs = {"value": behaviour_raw}
 
-                if "sandbox_name" not in behaviour_data and hasattr(behaviour, "sandbox_name"):
-                    behaviour_data["sandbox_name"] = behaviour.sandbox_name
+                if "sandbox_name" not in behaviour_attrs and hasattr(behaviour, "sandbox_name"):
+                    behaviour_attrs["sandbox_name"] = behaviour.sandbox_name
+
+                behaviour_data = {}
+                for key in ("id", "type"):
+                    if isinstance(behaviour_raw, dict) and key in behaviour_raw:
+                        behaviour_data[key] = behaviour_raw[key]
+
+                # Fields expected by action_get_file_behaviour.json
+                scalar_fields = [
+                    "sandbox_name",
+                    "analysis_date",
+                    "last_modification_date",
+                    "behash",
+                    "has_html_report",
+                    "has_pcap",
+                    "has_evtx",
+                    "has_memdump",
+                    "verdicts",
+                    "processes_tree",
+                    "processes_terminated",
+                    "command_executions",
+                    "files_opened",
+                    "registry_keys_opened",
+                    "modules_loaded",
+                    "ip_traffic",
+                    "mitre_attack_techniques",
+                    "tags",
+                    "text_highlighted",
+                    "sigma_analysis_results",
+                ]
+
+                count_fields = [
+                    "processes_created",
+                    "files_written",
+                    "files_deleted",
+                    "registry_keys_set",
+                    "dns_lookups",
+                ]
+
+                for field in scalar_fields:
+                    value = behaviour_attrs.get(field)
+                    if value is not None:
+                        behaviour_data[field] = value
+
+                for field in count_fields:
+                    value = behaviour_attrs.get(field)
+                    if value is None:
+                        continue
+                    if isinstance(value, (list, tuple, dict, set)):
+                        behaviour_data[field] = len(value)
+                    else:
+                        behaviour_data[field] = value
 
                 behaviours.append(behaviour_data)
 
@@ -280,7 +328,7 @@ class VTAPIConnector:
                 "GET",
                 f"/api/v3/files/{self.file_hash}/behaviours",
                 "SUCCESS",
-                {"behaviours_count": len(behaviours), "behaviours": behaviours},
+                {"behaviours_count": len(behaviours), "file_hash": self.file_hash, "behaviours": behaviours},
             )
 
         except vt.APIError as e:
