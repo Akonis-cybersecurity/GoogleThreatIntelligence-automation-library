@@ -32,7 +32,13 @@ class GTIScanFile(Action):
 
             with vt.Client(api_key, trust_env=True) as client:
                 connector.scan_file(client, str(file_path))
-                analysis = connector.results[-1].response
+                if not connector.results:
+                    return {"success": False, "error": "No scan results returned by VT connector"}
+
+                last_result = connector.results[-1]
+                analysis = last_result.response
+                if analysis is None:
+                    return {"success": False, "error": last_result.error or "Scan failed with empty response"}
 
                 return {
                     "success": True,
