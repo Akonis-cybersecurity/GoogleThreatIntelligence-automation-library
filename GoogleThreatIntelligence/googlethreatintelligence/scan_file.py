@@ -22,7 +22,14 @@ class GTIScanFile(Action):
         if not rel_path:
             return {"success": False, "error": "Missing argument: file_path"}
 
-        file_path = self.data_path.joinpath(rel_path)
+        raw_path = Path(rel_path)
+        if raw_path.is_absolute():
+            # Some playbook runs provide absolute paths that are actually rooted at data_path.
+            file_path = raw_path
+            if not file_path.exists():
+                file_path = self.data_path.joinpath(raw_path.relative_to(raw_path.anchor))
+        else:
+            file_path = self.data_path.joinpath(raw_path)
 
         # Verify file exists before attempting upload
         if not file_path.exists() or not file_path.is_file():

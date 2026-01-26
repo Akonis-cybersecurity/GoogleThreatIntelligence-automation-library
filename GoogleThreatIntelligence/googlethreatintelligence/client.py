@@ -56,6 +56,12 @@ class VTAPIConnector:
         self.api_key = api_key
         self.results: List[Result] = []
 
+        # Preserve raw inputs to allow actions to detect which entity was provided
+        self._input_domain = domain
+        self._input_ip = ip
+        self._input_url = url
+        self._input_file_hash = file_hash
+
         # Use provided values when available, otherwise fall back to sensible defaults
         self.domain = domain or "google.com"
         self.ip = ip or "8.8.8.8"
@@ -596,8 +602,32 @@ class VTAPIConnector:
     def get_vulnerability_associations(self, client: vt.Client):
         """Get vulnerability associations for an entity - FULLY tests the iterator"""
         try:
+            entity_type = None
+            entity_input = None
+            entity_id = None
+
+            if self._input_ip:
+                entity_type = "ip_addresses"
+                entity_input = self._input_ip
+                entity_id = self._input_ip
+            elif self._input_domain:
+                entity_type = "domains"
+                entity_input = self._input_domain
+                entity_id = self._input_domain
+            elif self._input_url:
+                entity_type = "urls"
+                entity_input = self._input_url
+                entity_id = base64.urlsafe_b64encode(self._input_url.encode()).decode().strip("=")
+            elif self._input_file_hash:
+                entity_type = "files"
+                entity_input = self._input_file_hash
+                entity_id = self._input_file_hash
+
+            if not entity_type or not entity_input or not entity_id:
+                raise ValueError("No valid entity provided for vulnerability associations")
+
             # IMPORTANT: Fully consume the iterator to test it properly
-            vulns_it = client.iterator(f"/ip_addresses/{self.ip}/vulnerabilities", limit=20)
+            vulns_it = client.iterator(f"/{entity_type}/{entity_id}/vulnerabilities", limit=20)
 
             vulnerabilities = []
             cve_ids = set()
@@ -633,12 +663,14 @@ class VTAPIConnector:
             self._add_result(
                 "VULN_ASSOCIATIONS",
                 "GET",
-                f"/api/v3/ip_addresses/{self.ip}/vulnerabilities",
+                f"/api/v3/{entity_type}/{entity_id}/vulnerabilities",
                 "SUCCESS",
                 {
                     "vulnerabilities_count": len(vulnerabilities),
                     "unique_cves_count": len(cve_ids),
                     "high_severity_count": high_severity_count,
+                    "entity": entity_input,
+                    "entity_type": entity_type,
                     "cve_ids": list(cve_ids),
                     "vulnerabilities": vulnerabilities,
                 },
@@ -653,7 +685,7 @@ class VTAPIConnector:
             self._add_result(
                 "VULN_ASSOCIATIONS",
                 "GET",
-                f"/api/v3/ip_addresses/{self.ip}/vulnerabilities",
+                f"/api/v3/{entity_type}/{entity_id}/vulnerabilities" if entity_type and entity_id else "",
                 "NOT_AVAILABLE",
                 None,
                 f"May require Premium API: {str(e)}",
