@@ -399,7 +399,9 @@ class VTAPIConnector:
                         total_processes_created += len(processes_created_val)
                     else:
                         behaviour_data["processes_created"] = processes_created_val
-                        total_processes_created += int(processes_created_val) if isinstance(processes_created_val, (int, float)) else 0
+                        total_processes_created += (
+                            int(processes_created_val) if isinstance(processes_created_val, (int, float)) else 0
+                        )
 
                 behaviours.append(behaviour_data)
 
@@ -428,16 +430,38 @@ class VTAPIConnector:
             logger.warning(f"File behaviours not available (may require Premium API): {e}")
 
             # Empty merged structure for error case
-            empty_merged = {field: [] for field in [
-                "verdicts", "tags", "ip_traffic", "dns_lookups", "http_conversations",
-                "command_executions", "files_opened", "files_written", "files_deleted",
-                "files_copied", "files_dropped", "registry_keys_opened", "registry_keys_set",
-                "registry_keys_deleted", "modules_loaded", "mitre_attack_techniques",
-                "processes_tree", "processes_terminated", "processes_injected",
-                "text_highlighted", "sigma_analysis_results", "services_opened",
-                "services_created", "services_started", "mutexes_opened",
-                "mutexes_created", "calls_highlighted",
-            ]}
+            empty_merged = {
+                field: []
+                for field in [
+                    "verdicts",
+                    "tags",
+                    "ip_traffic",
+                    "dns_lookups",
+                    "http_conversations",
+                    "command_executions",
+                    "files_opened",
+                    "files_written",
+                    "files_deleted",
+                    "files_copied",
+                    "files_dropped",
+                    "registry_keys_opened",
+                    "registry_keys_set",
+                    "registry_keys_deleted",
+                    "modules_loaded",
+                    "mitre_attack_techniques",
+                    "processes_tree",
+                    "processes_terminated",
+                    "processes_injected",
+                    "text_highlighted",
+                    "sigma_analysis_results",
+                    "services_opened",
+                    "services_created",
+                    "services_started",
+                    "mutexes_opened",
+                    "mutexes_created",
+                    "calls_highlighted",
+                ]
+            }
 
             result_payload = {
                 "file_hash": self.file_hash,

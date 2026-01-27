@@ -17,11 +17,17 @@ def _create_file_in_data_storage(data_storage: Path, rel_path: str, content: byt
 # === SUCCESS CASE ===
 @patch("googlethreatintelligence.scan_file.vt.Client")
 @patch("googlethreatintelligence.scan_file.VTAPIConnector")
-def test_scan_file_success(mock_connector_class, mock_vt_client, data_storage, module):
+@patch("googlethreatintelligence.scan_file.copy_to_tempfile")
+def test_scan_file_success(mock_copy, mock_connector_class, mock_vt_client, data_storage, module):
     """Test successful file scan"""
 
     rel_path = "samples/dummy.bin"
-    abs_path = _create_file_in_data_storage(data_storage, rel_path)
+    _create_file_in_data_storage(data_storage, rel_path)
+
+    # Mock copy_to_tempfile context manager
+    tmp_path = "/tmp/fake_tmp_dir/dummy.bin"
+    mock_copy.return_value.__enter__ = MagicMock(return_value=tmp_path)
+    mock_copy.return_value.__exit__ = MagicMock(return_value=False)
 
     # Mock VTAPIConnector instance
     mock_connector_instance = MagicMock()
@@ -55,7 +61,7 @@ def test_scan_file_success(mock_connector_class, mock_vt_client, data_storage, m
     assert response["data"]["file_path"] == rel_path  # we default to rel_path
 
     mock_connector_class.assert_called_once_with(API_KEY, url="", domain="", ip="", file_hash="", cve="")
-    mock_connector_instance.scan_file.assert_called_once_with(mock_client_instance, str(abs_path))
+    mock_connector_instance.scan_file.assert_called_once_with(mock_client_instance, tmp_path)
     mock_vt_client.assert_called_once_with(API_KEY, trust_env=True)
 
 
@@ -88,10 +94,16 @@ def test_scan_file_file_not_found(data_storage, module):
 # === API ERROR HANDLING ===
 @patch("googlethreatintelligence.scan_file.vt.Client")
 @patch("googlethreatintelligence.scan_file.VTAPIConnector")
-def test_scan_file_api_error(mock_connector_class, mock_vt_client, data_storage, module):
+@patch("googlethreatintelligence.scan_file.copy_to_tempfile")
+def test_scan_file_api_error(mock_copy, mock_connector_class, mock_vt_client, data_storage, module):
     """Test behavior when the VirusTotal API fails"""
     rel_path = "samples/dummy.bin"
-    abs_path = _create_file_in_data_storage(data_storage, rel_path)
+    _create_file_in_data_storage(data_storage, rel_path)
+
+    # Mock copy_to_tempfile
+    tmp_path = "/tmp/fake_tmp_dir/dummy.bin"
+    mock_copy.return_value.__enter__ = MagicMock(return_value=tmp_path)
+    mock_copy.return_value.__exit__ = MagicMock(return_value=False)
 
     # Mock connector that raises an APIError
     mock_connector_instance = MagicMock()
@@ -108,17 +120,23 @@ def test_scan_file_api_error(mock_connector_class, mock_vt_client, data_storage,
     with pytest.raises(vt.APIError):
         action.run({"file_path": rel_path})
 
-    mock_connector_instance.scan_file.assert_called_once_with(mock_client_instance, str(abs_path))
+    mock_connector_instance.scan_file.assert_called_once_with(mock_client_instance, tmp_path)
     mock_vt_client.assert_called_once_with(API_KEY, trust_env=True)
 
 
 # === EDGE CASE: Empty results list ===
 @patch("googlethreatintelligence.scan_file.vt.Client")
 @patch("googlethreatintelligence.scan_file.VTAPIConnector")
-def test_scan_file_empty_results(mock_connector_class, mock_vt_client, data_storage, module):
+@patch("googlethreatintelligence.scan_file.copy_to_tempfile")
+def test_scan_file_empty_results(mock_copy, mock_connector_class, mock_vt_client, data_storage, module):
     """Test behavior when connector.results is empty (edge case)"""
     rel_path = "samples/dummy.bin"
     _create_file_in_data_storage(data_storage, rel_path)
+
+    # Mock copy_to_tempfile
+    tmp_path = "/tmp/fake_tmp_dir/dummy.bin"
+    mock_copy.return_value.__enter__ = MagicMock(return_value=tmp_path)
+    mock_copy.return_value.__exit__ = MagicMock(return_value=False)
 
     mock_connector_instance = MagicMock()
     mock_connector_instance.results = []  # Empty results list
