@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## 2025-01-30 - 0.1.14
+
+### Fixed
+
+- Action schemas: Move result fields to root level (remove `data` wrapper) for consistency across all actions:
+  - Get Comments
+  - Get IoC Report
+  - Get Passive DNS
+  - Get Vulnerability Associations
+  - Get Vulnerability Report
+  - Scan File
+  - Scan URL
+
+### Added
+
+- Scan File: Additional unit tests for 100% code coverage (missing file_path argument, absolute paths handling, directory detection, error handling cases)
+
 ## 2025-12-21 - 0.1.13
 
 ### Fixed
