@@ -57,101 +57,100 @@
         "type": "boolean",
         "description": "Whether the operation was successful"
       },
-      "data": {
+      "entity_type": {
+        "type": "string",
+        "description": "Type of entity queried (ip_addresses, domains, urls, files)"
+      },
+      "entity": {
+        "type": "string",
+        "description": "The entity value that was queried"
+      },
+      "id": {
+        "type": "string",
+        "description": "VirusTotal object ID"
+      },
+      "reputation": {
+        "type": "integer",
+        "description": "Reputation score"
+      },
+      "last_analysis_stats": {
         "type": "object",
-        "description": "IoC report data",
+        "description": "Statistics from last analysis",
         "properties": {
-          "entity_type": {
-            "type": "string",
-            "description": "Type of entity queried (ip_addresses, domains, urls, files)"
+          "harmless": {
+            "type": "integer"
           },
-          "entity": {
-            "type": "string",
-            "description": "The entity value that was queried"
+          "malicious": {
+            "type": "integer"
           },
-          "id": {
-            "type": "string",
-            "description": "VirusTotal object ID"
+          "suspicious": {
+            "type": "integer"
           },
-          "reputation": {
-            "type": "integer",
-            "description": "Reputation score"
-          },
-          "last_analysis_stats": {
-            "type": "object",
-            "description": "Statistics from last analysis",
-            "properties": {
-              "harmless": {
-                "type": "integer"
-              },
-              "malicious": {
-                "type": "integer"
-              },
-              "suspicious": {
-                "type": "integer"
-              },
-              "undetected": {
-                "type": "integer"
-              }
-            }
-          },
-          "detections": {
-            "type": "object",
-            "description": "Detection summary",
-            "properties": {
-              "harmless": {
-                "type": "integer"
-              },
-              "malicious": {
-                "type": "integer"
-              },
-              "suspicious": {
-                "type": "integer"
-              },
-              "undetected": {
-                "type": "integer"
-              }
-            }
-          },
-          "country": {
-            "type": "string",
-            "description": "Country code (for IPs)"
-          },
-          "asn": {
-            "type": "integer",
-            "description": "Autonomous System Number (for IPs)"
-          },
-          "as_owner": {
-            "type": "string",
-            "description": "AS owner name (for IPs)"
-          },
-          "categories": {
-            "type": "object",
-            "description": "Domain categories"
-          },
-          "sha256": {
-            "type": "string",
-            "description": "SHA256 hash (for files)"
-          },
-          "md5": {
-            "type": "string",
-            "description": "MD5 hash (for files)"
-          },
-          "sha1": {
-            "type": "string",
-            "description": "SHA1 hash (for files)"
-          },
-          "size": {
-            "type": "integer",
-            "description": "File size in bytes (for files)"
-          },
-          "type_description": {
-            "type": "string",
-            "description": "File type description (for files)"
+          "undetected": {
+            "type": "integer"
           }
         }
+      },
+      "detections": {
+        "type": "object",
+        "description": "Detection summary",
+        "properties": {
+          "harmless": {
+            "type": "integer"
+          },
+          "malicious": {
+            "type": "integer"
+          },
+          "suspicious": {
+            "type": "integer"
+          },
+          "undetected": {
+            "type": "integer"
+          }
+        }
+      },
+      "country": {
+        "type": "string",
+        "description": "Country code (for IPs)"
+      },
+      "asn": {
+        "type": "integer",
+        "description": "Autonomous System Number (for IPs)"
+      },
+      "as_owner": {
+        "type": "string",
+        "description": "AS owner name (for IPs)"
+      },
+      "categories": {
+        "type": "object",
+        "description": "Domain categories"
+      },
+      "sha256": {
+        "type": "string",
+        "description": "SHA256 hash (for files)"
+      },
+      "md5": {
+        "type": "string",
+        "description": "MD5 hash (for files)"
+      },
+      "sha1": {
+        "type": "string",
+        "description": "SHA1 hash (for files)"
+      },
+      "size": {
+        "type": "integer",
+        "description": "File size in bytes (for files)"
+      },
+      "type_description": {
+        "type": "string",
+        "description": "File type description (for files)"
       }
-    }
+    },
+    "required": [
+      "success",
+      "entity_type",
+      "entity"
+    ]
   },
   "slug": "get_ioc_report_in_gti"
 }

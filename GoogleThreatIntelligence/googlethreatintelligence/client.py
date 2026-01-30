@@ -271,7 +271,7 @@ class VTAPIConnector:
 
             # Aggregated/merged fields across all sandboxes (using dict for dynamic access)
             sandbox_names = []
-            merged = {
+            merged: dict[str, list] = {
                 "verdicts": [],
                 "tags": [],
                 "ip_traffic": [],
@@ -430,7 +430,7 @@ class VTAPIConnector:
             logger.warning(f"File behaviours not available (may require Premium API): {e}")
 
             # Empty merged structure for error case
-            empty_merged = {
+            empty_merged: dict[str, list] = {
                 field: []
                 for field in [
                     "verdicts",
@@ -603,7 +603,7 @@ class VTAPIConnector:
                         vuln_data[key] = self._make_serializable(value, depth=0, max_depth=5)
             else:
                 # Fallback: just store basic info
-                vuln_data["id"] = str(vuln.id) if hasattr(vuln, "id") else None
+                vuln_data["id"] = str(vuln.id) if hasattr(vuln, "id") else ""
 
             self._add_result(
                 "VULN_REPORT",
